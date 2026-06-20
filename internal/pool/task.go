@@ -1,11 +1,16 @@
 package pool
 
+type Task interface {
+	Execute() (interface{}, error)
+}
+
 type Job struct {
 	ID   int
-	Data string
+	Task Task
 }
 
 type Result struct {
 	JobID  int
-	Output string
+	Output interface{}
+	Err error
 }

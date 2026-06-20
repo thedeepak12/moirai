@@ -1,23 +1,25 @@
 package pool
 
 import (
-	"fmt"
-	"time"
+	"fmt"	
 )
 
 func worker(id int, jobs <-chan Job, results chan<- Result) {
 	for job := range jobs {
 		fmt.Printf("[Worker %d] started processing job %d\n", id, job.ID)
 
-		time.Sleep(500 * time.Millisecond)
-
-		output := fmt.Sprintf("Processed payload: '%s'", job.Data)
+		output, err := job.Task.Execute()
 
 		results <- Result{
 			JobID:  job.ID,
 			Output: output,
+			Err: err,
 		}
 
-		fmt.Printf("[Worker %d] finished job %d\n", id, job.ID)
+		if err != nil {
+			fmt.Printf("[Worker %d] Job %d failed: %v\n", id, job.ID, err)
+		} else {
+			fmt.Printf("[Worker %d] finished job %d successfully\n", id, job.ID)
+		}
 	}
 }
