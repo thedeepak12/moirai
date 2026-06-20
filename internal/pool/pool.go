@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"sync"
 )
 
@@ -19,14 +20,14 @@ func NewPool(numWorkers int, queueSize int) *Pool {
 	}
 }
 
-func (p *Pool) Start() {
+func (p *Pool) Start(ctx context.Context) {
 	for i := 1; i <= p.numWorkers; i++ {
 		p.wg.Add(1)
 
 		go func(workerID int) {
 			defer p.wg.Done()
 
-			worker(workerID, p.jobs, p.results)
+			worker(ctx, workerID, p.jobs, p.results)
 		}(i)
 	}
 }

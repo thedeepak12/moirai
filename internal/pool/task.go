@@ -1,7 +1,11 @@
 package pool
 
+import (
+	"context"
+)
+
 type Task interface {
-	Execute() (interface{}, error)
+	Execute(ctx context.Context) (interface{}, error)
 }
 
 type Job struct {
@@ -12,5 +16,5 @@ type Job struct {
 type Result struct {
 	JobID  int
 	Output interface{}
-	Err error
+	Err    error
 }

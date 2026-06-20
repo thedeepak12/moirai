@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"time"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/thedeepak12/moirai/internal/pool"
 )
@@ -14,18 +15,22 @@ import (
 type HTTPCheckTask struct {
 	URL string
 }
-func (h HTTPCheckTask) Execute() (interface{}, error) {
-	client := http.Client{
-		Timeout: 3 * time.Second,
+
+func (h HTTPCheckTask) Execute(ctx context.Context) (interface{}, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", h.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	client := http.Client{}
 	start := time.Now()
-	resp, err := client.Get(h.URL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	duration := time.Since(start)
-	
+
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("received bad status code: %d", resp.StatusCode)
 	}
@@ -36,7 +41,8 @@ type PasswordHashTask struct {
 	Password string
 	Salt     string
 }
-func (p PasswordHashTask) Execute() (interface{}, error) {
+
+func (p PasswordHashTask) Execute(ctx context.Context) (interface{}, error) {
 	if len(p.Password) < 8 {
 		return nil, errors.New("Password is too short (min 8 chars)")
 	}
@@ -44,6 +50,12 @@ func (p PasswordHashTask) Execute() (interface{}, error) {
 	hash := sha256.New()
 	data := []byte(p.Password + p.Salt)
 	for i := 0; i < 10000; i++ {
+		if i%1000 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+
 		hash.Reset()
 		hash.Write(data)
 		data = hash.Sum(nil)
@@ -55,6 +67,9 @@ func (p PasswordHashTask) Execute() (interface{}, error) {
 func main() {
 	numWorkers := 3
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
 	tasks := []pool.Task{
 		HTTPCheckTask{URL: "https://www.google.com"},
 		HTTPCheckTask{URL: "https://go.dev"},
@@ -64,7 +79,7 @@ func main() {
 	}
 
 	p := pool.NewPool(numWorkers, len(tasks))
-	p.Start()
+	p.Start(ctx)
 
 	go func() {
 		for i, t := range tasks {
