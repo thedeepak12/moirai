@@ -80,21 +80,23 @@ func drawProgressBar(completed, total int64) string {
 }
 
 func main() {
-	numWorkers := 3
+	initialWorkers := 2
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	tasks := []pool.Task{
 		HTTPCheckTask{URL: "https://www.google.com"},
 		HTTPCheckTask{URL: "https://go.dev"},
+		HTTPCheckTask{URL: "https://github.com"},
 
 		PasswordHashTask{Password: "v5x!wKZmp2VF9HKYyeRd$^VU", Salt: "ftsz3pLHiS0Lid/17zkB4wddmsDPsg=="},
 		PasswordHashTask{Password: "123456", Salt: "oKuNU/4X5bdWsEu4OnZlfoPgEPIk8g=="},
+		PasswordHashTask{Password: "9KCe4bFP7KxEqrDCzK", Salt: "0tarr2rbWgsjiPzxVIHSeKmuugUUhQ=="},
 	}
 
 	totalJobs := int64(len(tasks))
-	p := pool.NewPool(numWorkers, len(tasks))
+	p := pool.NewPool(initialWorkers, len(tasks))
 	p.Start(ctx)
 
 	go func() {
@@ -114,6 +116,18 @@ func main() {
 				ID:   i + 1,
 				Task: t,
 			})
+
+			time.Sleep(200 * time.Millisecond)
+
+			if i == 2 {
+				fmt.Println("[Main] Scaling UP: Spawning +2 workers...")
+				p.ScaleUp(ctx, 2)
+			}
+
+			if i == 5 {
+				fmt.Println("\n[Main] Scaling DOWN: Terminating -2 workers...")
+				p.ScaleDown(2)
+			}
 		}
 
 		p.Wait()

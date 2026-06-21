@@ -5,11 +5,15 @@ import (
 	"fmt"
 )
 
-func worker(ctx context.Context, id int, jobs <-chan Job, results chan<- Result, metrics *Metrics, progress chan<- Progress) {
+func worker(ctx context.Context, id int, jobs <-chan Job, results chan<- Result, metrics *Metrics, progress chan<- Progress, workerStop <-chan struct{}) {
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Printf("[Worker %d] Context cancelled, shutting down.\n", id)
+			return
+
+		case <-workerStop:
+			fmt.Printf("[Worker %d] Scaled down, shutting down.\n", id)
 			return
 
 		case job, ok := <-jobs:
