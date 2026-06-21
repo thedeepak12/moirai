@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/thedeepak12/moirai/internal/pool"
@@ -64,6 +65,20 @@ func (p PasswordHashTask) Execute(ctx context.Context) (interface{}, error) {
 	return hex.EncodeToString(data), nil
 }
 
+func drawProgressBar(completed, total int64) string {
+	width := 20
+
+	if total == 0 {
+		return "[" + strings.Repeat(" ", width) + "] 0%"
+	}
+
+	percent := float64(completed) / float64(total)
+	filledLength := int(percent * float64(width))
+
+	bar := strings.Repeat("█", filledLength) + strings.Repeat(" ", width-filledLength)
+	return fmt.Sprintf("[%s] %.0f%%", bar, percent*100)
+}
+
 func main() {
 	numWorkers := 3
 
@@ -78,8 +93,20 @@ func main() {
 		PasswordHashTask{Password: "123456", Salt: "oKuNU/4X5bdWsEu4OnZlfoPgEPIk8g=="},
 	}
 
+	totalJobs := int64(len(tasks))
 	p := pool.NewPool(numWorkers, len(tasks))
 	p.Start(ctx)
+
+	go func() {
+		for progress := range p.Progress() {
+			bar := drawProgressBar(progress.Completed+progress.Failed, totalJobs)
+
+			fmt.Printf("\rTelemetry: %s | Completed: %d | Failed: %d | Total: %d ",
+				bar, progress.Completed, progress.Failed, totalJobs)
+		}
+
+		fmt.Println()
+	}()
 
 	go func() {
 		for i, t := range tasks {

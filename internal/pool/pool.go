@@ -10,6 +10,8 @@ type Pool struct {
 	jobs       chan Job
 	results    chan Result
 	wg         sync.WaitGroup
+	metrics    Metrics
+	progress   chan Progress
 }
 
 func NewPool(numWorkers int, queueSize int) *Pool {
@@ -17,6 +19,7 @@ func NewPool(numWorkers int, queueSize int) *Pool {
 		numWorkers: numWorkers,
 		jobs:       make(chan Job, queueSize),
 		results:    make(chan Result, queueSize),
+		progress:   make(chan Progress, queueSize),
 	}
 }
 
@@ -27,12 +30,13 @@ func (p *Pool) Start(ctx context.Context) {
 		go func(workerID int) {
 			defer p.wg.Done()
 
-			worker(ctx, workerID, p.jobs, p.results)
+			worker(ctx, workerID, p.jobs, p.results, &p.metrics, p.progress)
 		}(i)
 	}
 }
 
 func (p *Pool) Submit(job Job) {
+	p.metrics.IncSubmitted()
 	p.jobs <- job
 }
 
@@ -40,8 +44,13 @@ func (p *Pool) Results() <-chan Result {
 	return p.results
 }
 
+func (p *Pool) Progress() <-chan Progress {
+	return p.progress
+}
+
 func (p *Pool) Wait() {
 	close(p.jobs)
 	p.wg.Wait()
 	close(p.results)
+	close(p.progress)
 }

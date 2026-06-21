@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func worker(ctx context.Context, id int, jobs <-chan Job, results chan<- Result) {
+func worker(ctx context.Context, id int, jobs <-chan Job, results chan<- Result, metrics *Metrics, progress chan<- Progress) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -25,6 +25,16 @@ func worker(ctx context.Context, id int, jobs <-chan Job, results chan<- Result)
 			fmt.Printf("[Worker %d] started processing job %d\n", id, job.ID)
 
 			output, err := job.Task.Execute(ctx)
+			if err != nil {
+				metrics.IncFailed()
+			} else {
+				metrics.IncCompleted()
+			}
+
+			select {
+			case progress <- metrics.Snapshot():
+			default:
+			}
 
 			results <- Result{
 				JobID:  job.ID,
